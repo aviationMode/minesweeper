@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@48,400,1,0" />
+
+		<style type="text/css">
+			span{
+				position: absolute;
+
+				font-family: sans-serif;
+				font-size: 15px;
+
+				user-select: none;
+
+				display: flex;
+				align-items: center;
+				justify-content: center;
+			}
+
+			/*
+			even -> darker
+			odd -> lighter
+			*/
+			/*green land*/
+			.even.land{
+				background-color: rgb(0, 186, 74);    /*rgb(12, 195, 56);*/
+			}
+			.odd.land{
+				background-color: rgb(139, 214, 169); /*rgb(10, 175, 60);*/
+			}
+			
+
+			/*open land*/
+			.even.open{
+				background-color: rgb(191, 172, 0);
+			}
+			.odd.open{
+				background-color: rgb(214, 207, 139);
+			}
+
+			/*mine*/
+			.mine{
+				background-color: rgb(240, 129, 129);
+			}
+
+			/*wrong flag*/
+			.even.wrong{
+				background-color: rgb(186, 0, 0);
+			}
+			.odd.wrong{
+				background-color: rgb(214, 139, 139);
+			}
+
+			/*flag color*/
+			.flag{
+				color: rgb(242, 131, 131);
+				font-size: 18px;
+			}
+
+			/************************************/
+
+			.game-board{
+				width:0px;
+				height:0px;
+				margin: auto;
+			}
+
+			.bottom{
+				/*margin-top: 10px; 
+				position: absolute;*/
+
+				pointer-events: none;
+			}
+
+			.playAgain{
+				background-color: rgb(128, 179, 255);
+				border: 5px solid rgb(51, 133, 255);
+
+				text-align: center;
+
+				font-family: sans-serif;
+
+				position: relative;
+
+				pointer-events: all;
+
+			}
+
+		</style>
+	</head>
+	<body>
+
+		<div class="game-board" id="game-board"></div>
+		<div class="flag"></div>
+		<div class="bottom" style="margin-top: 10px; position: absolute;">
+			<span id="message"></span>
+			<span id="mines-left" >Mines left: </span>
+			<span id="time">0</span>
+		</div>
+		<div class="bottom" style="margin-top: 55px; position: realtive;">
+			<span id="playAgain"></span>
+		</div> <!--class="playAgain"-->
+
+
+
+
+
+		<script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.4/jquery.min.js"></script>
+		<!-- https://scratch.mit.edu/projects/700414722/editor/ -->
+		<script type="text/javascript">
+			/*
+			TODO:
+			 [x] make the start box a '0'
+			 [x] reveal mines/wrong flags at end
+			 [x] when game ends freeze screen
+			 [x] add timer / mines left
+
+			 [ ] center board  --> use flexbox
+			 [x] make flags scale with board 
+			 [x] make the number/flags non-highlightable
+
+			 [ ] change dimensions/density
+			**/
+
+			var BROADCAST = "";
+
+			var density = 0.20;
+			var width = 18;
+			var height = 14;
+			var hasStarted = false;
+			var startingBoxNum = 0;
+			var numOfMines = Math.ceil(width*height*density); // previously 'mines'
+			var minesLeft = numOfMines;
+			var time = 0;
+
+			var blah = [];
+			var box = [];
+			var toBeOpened = [];
+
+			var numColors = [0, "rgb(255, 128, 128)", "rgb(255, 219, 128)", "rgb(200, 255, 128)", "rgb(128, 255, 149)", "rgb(128, 255, 240)", "rgb(128, 179, 255)", "rgb(168, 128, 255)", "rgb(255, 128, 251)"];
+
+
+
+			// init
+			var init = function(){
+				//pass;
+			}
+
+			// making the board
+			var setUpBoard = function(){
+				var idNum = 0;
+				var color = 0;
+				var square = {"h":40,"w":40};
+
+				for(h=0;h<height;h++){
+					for(w=0; w<width; w++){
+						$("<span>").attr({"id":idNum,"class":(color%2 === 0 ? "even" : "odd") + " land", "oncontextmenu":"return false;"})
+						.css({"width":(square.w+"px"),"height":(square.h+"px"),"left":((w*square.w) +"px"), "top":((h*square.h) +"px")})
+						.appendTo("body div.game-board");
+
+						idNum++;
+						color++;
+					}
+					color++;
+				}
+
+				$("div.game-board").css("width",square.w*width+"px").css("height",square.h*height+"px")//.css("margin","auto")
+				$("span").css("font-size",square.h*(0.75)+"px");
+				$("<style type=\"text/css\">.flag{font-size: "+(square.h*(0.9)+"px")+";}</style>").appendTo("head");
+				$("#bottom").css("font-size",square.h*(0.75)+"px");
+				$("#message").css("width", (square.w*(.2)*width)+"px");
+				$("#message, #mines-left, #time").css("user-select", "all")
+				$("#mines-left, #time").css("width", (square.w*(.4)*width)+"px").css("margin-left",(square.w*(.2)*width)+"px");
+				$("#time").css("width", (square.w*(.4)*width)+"px").css("margin-left",(square.w*(.6)*width)+"px");
+				$("#mines-left").text("Mines left: " +minesLeft);
+				//console.log($(".material-symbols-outlined").css("font-size"));
+				$("#playAgain").css("width", (square.w*(0.8)*width)+"px").css("margin-left",(square.w*(.1)*width)+"px")
+			}
+
+			// locate mines after click
+			var locateMines = function() {
+				console.log(startingBoxNum)
+				var emptyBoxes = [];
+				emptyBoxes.push(startingBoxNum);
+
+				emptyBoxes.push(startingBoxNum+1);
+				emptyBoxes.push(startingBoxNum+width-1);
+				emptyBoxes.push(startingBoxNum+width);
+				emptyBoxes.push(startingBoxNum+width+1);
+				emptyBoxes.push(startingBoxNum-1);
+				emptyBoxes.push(startingBoxNum-width+1);
+				emptyBoxes.push(startingBoxNum-width);
+				emptyBoxes.push(startingBoxNum-width-1);
+
+				for(i=0;i<(width*height);i++){
+					box.push(0)
+				}
+				while(blah.length != numOfMines){
+					var x = Math.floor(Math.random()*(width*height));
+					if(!(blah.includes(x)) && !(emptyBoxes.includes(x))){
+						blah.push(x);
+					}
+				}
+				for(i=0;i<numOfMines;i++){
+					box[blah[i]] = 1;
+				}
+
+				console.log(emptyBoxes);
+				console.log(blah);
+				console.log(box);
+
+			}
+
+			// find number of surrounding mines from box number (#)
+			var findSurroundingMines = function(num){
+				num = Number(num);
+				//console.log("::"+num);
+				var numOSurroundingMines = 0;
+
+				if (((box[num+1]===1)||(box[num+1]===3)) && (num%width!=width-1)){
+					numOSurroundingMines++;
+				}
+				if (((box[num+width-1]===1)||(box[num+width-1]===3)) && (num%width!=0)){
+					numOSurroundingMines++;
+				}
+				if (((box[num+width]===1)||(box[num+width]===3))){
+					numOSurroundingMines++;
+				}
+				if (((box[num+width+1]===1)||(box[num+width+1]===3)) && (num%width!=width-1)){
+					numOSurroundingMines++;
+				}
+				if (((box[num-1]===1)||(box[num-1]===3)) && (num%width!=0)){
+					numOSurroundingMines++;
+				}
+				if (((box[num-width-1]===1)||(box[num-width-1]===3)) && (num%width!=0)){
+					numOSurroundingMines++;
+				}
+				if (((box[num-width]===1)||(box[num-width]===3))){
+					numOSurroundingMines++;
+				}
+				if (((box[num-width+1]===1)||(box[num-width+1]===3)) && (num%width!=width-1)){
+					numOSurroundingMines++;
+				}
+
+				console.log("::"+numOSurroundingMines)
+				return(numOSurroundingMines);
+			}
+			// number of blocks flagged next to box (#)
+			var findSurroundingFlags = function(num){
+				num = Number(num);
+				var numOSurroundingMines = 0;
+
+				if(((box[num+1]===4)||(box[num+1]===3)) && (num%width!=width-1)){
+					numOSurroundingMines++;
+				}
+				if (((box[num+width-1]===4)||(box[num+width-1]===3)) && (num%width!=0)){
+					numOSurroundingMines++;
+				}
+				if (((box[num+width]===4)||(box[num+width]===3))){
+					numOSurroundingMines++;
+				}
+				if (((box[num+width+1]===4)||(box[num+width+1]===3)) && (num%width!=width-1)){
+					numOSurroundingMines++;
+				}
+				if (((box[num-1]===4)||(box[num-1]===3)) && (num%width!=0)){
+					numOSurroundingMines++;
+				}
+				if (((box[num-width-1]===4)||(box[num-width-1]===3)) && (num%width!=0)){
+					numOSurroundingMines++;
+				}
+				if (((box[num-width]===4)||(box[num-width]===3))){
+					numOSurroundingMines++;
+				}
+				if (((box[num-width+1]===4)||(box[num-width+1]===3)) && (num%width!=width-1)){
+					numOSurroundingMines++;
+				}
+				return(numOSurroundingMines);
+			}
+
+			// open mines next to (#)
+			var openMinesNextTo = function(num) {
+				num = Number(num);
+				//console.log(num)
+				
+				/*toBeOpened.push((num+1)*(num%width!=width-1));
+				toBeOpened.push((num+width-1)*(num%width!=0));
+				toBeOpened.push((num+width));
+				toBeOpened.push((num+width+1)*(num%width!=width-1));
+				toBeOpened.push((num-1)*(num%width!=0));
+				toBeOpened.push((num-width-1)*(num%width!=0));
+				toBeOpened.push((num-width));
+				toBeOpened.push((num-width+1)*(num%width!=width-1));*/
+
+				toBeOpened.push((num%width!=width-1) ? Number(num+1) : -1);
+				toBeOpened.push((num%width!=0) ? Number(num+width-1) : -1);
+				toBeOpened.push(Number(num+width));
+				toBeOpened.push((num%width!=width-1) ? Number(num+width+1) : -1);
+				toBeOpened.push((num%width!=0) ? Number(num-1) : -1);
+				toBeOpened.push((num%width!=0) ? Number(num-width-1) : -1);
+				toBeOpened.push(Number(num-width));
+				toBeOpened.push((num%width!=width-1) ? Number(num-width+1) : -1);
+				
+				//console.log(toBeOpened)
+
+				$(".land").each(function() {
+					//console.log($(".land")[i].id);
+					if (toBeOpened.includes(Number(this.id))){
+
+						// removes i from toBeOpened
+
+						//var ths = $(".land")[i];
+
+						if (box[this.id]===0){
+							let _sMines = findSurroundingMines(this.id);
+							//console.log("\t"+_sMines)
+							$(this).removeClass("land").addClass("open").text(_sMines!=0 ? _sMines : "").attr("style",$(this).attr("style")+"; color:"+numColors[_sMines]);
+							box[this.id] = 2;
+							if (_sMines===0){
+								//console.log(true)
+								openMinesNextTo(this.id);
+							}
+							//sleep(1)
+						} else if (box[this.id]===1) {
+							$(this).attr("class","mine");
+							BROADCAST = "end";
+						}
+					}
+				})
+			}
+
+			// when i start as clone ...
+			
+			var main = function() {
+				$(".land").on("click", function(e) {
+					if (hasStarted === false){
+						hasStarted = true;
+						startingBoxNum = Number(this.id);
+						locateMines();
+
+						var timer = setInterval(function (){
+							time++;
+							$("#time").text(Math.floor(time/100));
+							if (BROADCAST != ""){
+
+								clearInterval(timer);
+
+								if (BROADCAST==="end"){
+									$(".land").each(function() {
+										if (box[this.id] === 1){
+											$(this).removeClass("land").addClass("mine");
+										} else if (box[this.id] === 4){
+											$(this).removeClass("land").addClass("wrong");
+										}
+									})
+								}
+
+								$(".land, .open, .mine, .wrong").css("pointer-events","none");
+								$("#playAgain").addClass("playAgain").text("Play Again");
+
+								return;
+								
+
+							}
+						}, 10)
+					}
+
+					if (e.which===1 && (box[this.id]==0 || box[this.id]==1 || toBeOpened.includes(this.id))){
+						console.log("open tile")
+						if (box[this.id]===0){
+							let _sMines = findSurroundingMines(this.id);
+							//console.log("\t"+_sMines)
+							$(this).removeClass("land").addClass("open").text(_sMines!=0 ? _sMines : "").attr("style",$(this).attr("style")+"; color:"+numColors[_sMines]);
+							box[this.id] = 2;
+							if (_sMines===0){
+								//openMinesNextTo(this.id);
+							}
+							//sleep(1)
+						} else if (box[this.id]===1) {
+							$(this).attr("class","mine");
+							BROADCAST = "end";
+						}
+
+					}
+				})
+				$(".land").on("contextmenu", function(e) {
+					
+					if (box[this.id]===0 || box[this.id]===1){
+						//console.log("flag")
+						$(this).html("<span class=\"material-symbols-outlined flag\">flag</span>");
+						if (box[this.id]===1){
+							box[this.id]=3;
+						} else {
+							box[this.id]=4;
+						}
+						minesLeft --;
+						//sleep(1);
+					} else if (box[this.id]===3 || box[this.id]===4){
+						$(this).html("");
+						if (box[this.id]===3){
+							box[this.id]=1;
+						} else {
+							box[this.id]=0;
+						}
+						minesLeft ++;
+						//sleep(1);
+					}
+
+					$("#mines-left").text("Mines left: " +minesLeft);
+				})
+				$(".land").on("click", function(e) {
+					if (box[this.id]===2){
+						//console.log("open surrounding")
+						//console.log(typeof this.innerText+"::"+typeof findSurroundingFlags(this.id))
+						if (Number(this.innerText)===findSurroundingFlags(this.id) || this.innerText===""){
+							openMinesNextTo(this.id);
+						}
+					}
+
+				})
+				$("div").on("click contextmenu", function(){
+					if (box.length > 0 && (!(box.includes(0)) && !(box.includes(4)))){
+					BROADCAST="done";
+					}
+					
+					if (BROADCAST==="done" || BROADCAST==="end"){
+						$("#message").text(BROADCAST);
+				}
+				})
+
+			}
+
+			
+
+			setUpBoard();
+			main();
+
+			var pa = setInterval(function(){
+				$("#playAgain").on("click",function(){
+					console.log("click")
+					location.reload();
+				})
+
+			},1000)
+			
+
+		</script>
+
+		<script type="text/javascript">
+			
+		</script>
+	</body>
+</html>
